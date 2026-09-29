@@ -1,0 +1,83 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ConnectorType {
+  CCS2
+  CHADEMO
+  TYPE2
+}
+
+enum ReservationStatus {
+  BOOKED
+  CHECKED_IN
+  CANCELLED
+  EXPIRED
+}
+
+model User {
+  id            String         @id @default(uuid()) @db.Uuid
+  email         String         @unique
+  passwordHash  String
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  refreshTokens RefreshToken[]
+  reservations  Reservation[]
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique
+  familyId  String    @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime  @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([familyId])
+  @@index([userId])
+}
+
+model Station {
+  id       String    @id @default(uuid()) @db.Uuid
+  name     String
+  address  String
+  chargers Charger[]
+}
+
+model Charger {
+  id            String        @id @default(uuid()) @db.Uuid
+  stationId     String        @db.Uuid
+  station       Station       @relation(fields: [stationId], references: [id])
+  connectorType ConnectorType
+  powerKw       Int
+  reservations  Reservation[]
+
+  @@index([stationId])
+}
+
+model Reservation {
+  id          String            @id @default(uuid()) @db.Uuid
+  userId      String            @db.Uuid
+  user        User              @relation(fields: [userId], references: [id])
+  chargerId   String            @db.Uuid
+  charger     Charger           @relation(fields: [chargerId], references: [id])
+  slotStart   DateTime          @db.Timestamptz(3)
+  status      ReservationStatus @default(BOOKED)
+  checkedInAt DateTime?         @db.Timestamptz(3)
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
+
+  // At most one active reservation per charger slot. The database enforces it,
+  // so two concurrent bookings cannot both succeed; the loser gets a unique violation.
+  // The predicate means `status IN ('BOOKED', 'CHECKED_IN')`, written the way Postgres
+  // stores it; otherwise Prisma sees drift and recreates the index in every migration.
+  @@unique([chargerId, slotStart], map: "Reservation_active_slot_key", where: raw("status = ANY (ARRAY['BOOKED'::\"ReservationStatus\", 'CHECKED_IN'::\"ReservationStatus\"])"))
+  @@index([userId])
+}

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: chargeslot
+          POSTGRES_PASSWORD: chargeslot
+          POSTGRES_DB: chargeslot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chargeslot -d chargeslot"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+
+    env:
+      DATABASE_URL: postgresql://chargeslot:chargeslot@localhost:5432/chargeslot
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run db:migrate -w api
+      - run: npm test
+      - run: npm run build

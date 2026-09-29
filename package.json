@@ -1,0 +1,26 @@
+{
+  "name": "chargeslot",
+  "private": true,
+  "license": "MIT",
+  "author": "Yura Kost",
+  "workspaces": [
+    "api",
+    "web"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "concurrently --names api,web --prefix-colors blue,magenta \"npm run start:dev -w api\" \"npm run dev -w web\"",
+    "db:setup": "docker compose up -d --wait db && npm run db:migrate -w api && npm run db:seed -w api",
+    "lint": "prettier --check . && npm run lint --workspaces",
+    "format": "prettier --write .",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces",
+    "build": "npm run build --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "prettier": "^3.9.9"
+  }
+}
