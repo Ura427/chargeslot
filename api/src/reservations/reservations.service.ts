@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { CreateReservationDto } from './dto/create-reservation.dto.js';
 
 // Prisma's unique-constraint violation code.
@@ -13,21 +14,32 @@ const UNIQUE_VIOLATION = 'P2002';
 // Check-in must happen within [slotStart, slotStart + 10min]. Using 409 (not 400) because
 // "too early/too late to check in" is a conflict with the resource's current state, in the
 // same family as the SLOT_TAKEN conflict this API already uses.
-const CHECK_IN_WINDOW_MS = 10 * 60 * 1000;
+// Exported so the expiry job (expiry.job.ts) reuses this exact constant instead of
+// redefining the no-show window separately.
+export const CHECK_IN_WINDOW_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class ReservationsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private realtime: RealtimeGateway,
+  ) {}
 
   async create(userId: string, dto: CreateReservationDto) {
     try {
-      return await this.prisma.reservation.create({
+      const reservation = await this.prisma.reservation.create({
         data: {
           userId,
           chargerId: dto.chargerId,
           slotStart: new Date(dto.slotStart),
         },
       });
+      this.realtime.emitSlotUpdated({
+        chargerId: reservation.chargerId,
+        slotStart: reservation.slotStart.toISOString(),
+        status: reservation.status,
+      });
+      return reservation;
     } catch (error) {
       if (this.isUniqueViolation(error)) {
         throw new ConflictException({
@@ -48,22 +60,35 @@ export class ReservationsService {
     if (now < windowStart || now > windowEnd) {
       throw new ConflictException({
         code: 'OUTSIDE_CHECK_IN_WINDOW',
-        message: 'Check-in is only allowed from the slot start until 10 minutes after.',
+        message:
+          'Check-in is only allowed from the slot start until 10 minutes after.',
       });
     }
 
-    return this.prisma.reservation.update({
+    const updated = await this.prisma.reservation.update({
       where: { id: reservationId },
       data: { status: 'CHECKED_IN', checkedInAt: new Date() },
     });
+    this.realtime.emitSlotUpdated({
+      chargerId: updated.chargerId,
+      slotStart: updated.slotStart.toISOString(),
+      status: updated.status,
+    });
+    return updated;
   }
 
   async cancel(userId: string, reservationId: string) {
     await this.findOwned(userId, reservationId);
-    return this.prisma.reservation.update({
+    const updated = await this.prisma.reservation.update({
       where: { id: reservationId },
       data: { status: 'CANCELLED' },
     });
+    this.realtime.emitSlotUpdated({
+      chargerId: updated.chargerId,
+      slotStart: updated.slotStart.toISOString(),
+      status: updated.status,
+    });
+    return updated;
   }
 
   findMine(userId: string) {
@@ -85,8 +110,6 @@ export class ReservationsService {
     }
     return reservation;
   }
-
-
 
   private isUniqueViolation(error: unknown): boolean {
     return (
