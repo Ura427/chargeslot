@@ -16,6 +16,10 @@ export function StationDetailPage() {
   const { stationId } = useParams<{ stationId: string }>();
   const [date, setDate] = useState(DATE_OPTIONS[0].value);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [pendingSlot, setPendingSlot] = useState<{
+    chargerId: string;
+    slotStart: string;
+  } | null>(null);
 
   const {
     data: availability,
@@ -31,13 +35,20 @@ export function StationDetailPage() {
   const [createReservation, { isLoading: isBooking }] =
     useCreateReservationMutation();
 
-  async function handleBook(chargerId: string, slotStart: string) {
+  // TODO(user): once useLiveAvailability is implemented, call it here
+  // (e.g. `useLiveAvailability(stationId ?? '')`) to patch the cache live;
+  // the refetch() call in handleBook below stays as the working fallback.
+
+  async function handleConfirmBook() {
+    if (!pendingSlot) return;
     setBookingError(null);
     try {
-      await createReservation({ chargerId, slotStart }).unwrap();
+      await createReservation(pendingSlot).unwrap();
+      setPendingSlot(null);
     } catch (err) {
       if (getErrorCode(err) === 'SLOT_TAKEN') {
         setBookingError('This slot was just taken by someone else.');
+        setPendingSlot(null);
         refetch();
       } else {
         setBookingError(getErrorMessage(err, 'Could not book this slot.'));
@@ -79,6 +90,31 @@ export function StationDetailPage() {
 
       {bookingError && <p className="text-sm text-red-600">{bookingError}</p>}
 
+      {pendingSlot && (
+        <div className="flex items-center justify-between rounded-lg border border-slate-300 bg-slate-50 p-3">
+          <p className="text-sm">
+            Book the slot at{' '}
+            <span className="font-medium">
+              {formatLocalTime(pendingSlot.slotStart)}
+            </span>
+            ?
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleConfirmBook} disabled={isBooking}>
+              {isBooking ? 'Booking…' : 'Confirm'}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setPendingSlot(null)}
+              disabled={isBooking}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
       {availability && availability.chargers.length === 0 && (
         <p className="text-slate-600">No chargers at this station.</p>
       )}
@@ -98,7 +134,12 @@ export function StationDetailPage() {
                 status={slot.status}
                 label={formatLocalTime(slot.slotStart)}
                 disabled={isBooking}
-                onClick={() => handleBook(charger.chargerId, slot.slotStart)}
+                onClick={() =>
+                  setPendingSlot({
+                    chargerId: charger.chargerId,
+                    slotStart: slot.slotStart,
+                  })
+                }
               />
             ))}
           </div>
