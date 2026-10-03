@@ -2,22 +2,28 @@
 
 [![CI](https://github.com/Ura427/chargeslot/actions/workflows/ci.yml/badge.svg)](https://github.com/Ura427/chargeslot/actions/workflows/ci.yml)
 
-ChargeSlot lets drivers reserve a 30-minute slot on an EV charger, check in when they arrive,
-and see availability change live. A booking that is not checked in within 10 minutes of its
-start expires and frees the slot. The project exists to show the parts of a booking system that
-are easy to get wrong: no double booking under concurrent requests, holds that expire on their
-own, refresh-token rotation, and live updates without refetch flicker.
+A full-stack EV charger reservation app. Drivers book a 30-minute slot, check in on arrival, and see availability update live. A booking that isn't checked in within 10 minutes of its start expires and frees the slot automatically.
+
+ChargeSlot focuses on the parts of a booking system that are easy to get wrong:
+
+- **No double booking under concurrent requests**, enforced by the database rather than by application code
+- **Holds that expire on their own**, without waiting for someone to request the data
+- **Refresh-token rotation with theft detection**
+- **Live availability updates** over WebSockets
 
 ## Stack
 
-- **API:** NestJS 12, Prisma 7, PostgreSQL 18
-- **Web:** React 19, Vite 8, Redux Toolkit Query, Tailwind CSS 4, tailwind-variants
-- **Tests:** Vitest, Supertest, React Testing Library
-- **Tooling:** npm workspaces, TypeScript (strict), Oxlint, Prettier, Docker Compose, GitHub Actions
+| Layer | Technology |
+|---|---|
+| API | NestJS 12, Prisma 7, PostgreSQL 18 |
+| Web | React 19, Vite 8, Redux Toolkit Query, Tailwind CSS 4 |
+| Realtime | WebSocket gateway (`slot.updated` events) |
+| Tests | Vitest, Supertest, React Testing Library |
+| Tooling | npm workspaces, strict TypeScript, Oxlint, Prettier, Docker Compose, GitHub Actions |
 
 ## Run locally
 
-Needs Node 24 and Docker.
+Requires Node 24 and Docker.
 
 ```bash
 npm install
@@ -26,70 +32,38 @@ npm run db:setup   # starts Postgres in Docker, applies migrations, seeds 3 stat
 npm run dev        # API on http://localhost:3000, web on http://localhost:5173
 ```
 
-`curl localhost:3000/health` returns `{"status":"ok"}`. To try the API's production image, stop
-`npm run dev` and run `docker compose up --build`.
+`curl localhost:3000/health` returns `{"status":"ok"}`. To try the production API image, stop `npm run dev` and run `docker compose up --build`.
 
-## Project status
+## What works today
 
-All 5 milestones done: scaffold, auth + stations + reservations API, expiry job + WebSocket
-gateway, web client (auth, station list, slot grid, booking/cancel/check-in), live-sync
-infrastructure and this README. The app works end-to-end right now.
+- Register / log in, with short-lived access tokens and rotating refresh tokens
+- Station list and a slot grid per charger
+- Book, cancel and check in to a reservation
+- Automatic expiry of no-shows, once a minute
+- A concurrency end-to-end test that fires simultaneous booking requests at a real PostgreSQL instance and asserts that exactly one succeeds
 
-Now in the **rewrite phase**: per this project's authorship rule, the four files listed below
-are deliberately left as stubs for the user to rewrite and understand line-by-line before the
-repo link goes to anyone. Everything else was built by Claude; these four (plus the bonus
-expiry job) are the interview surface.
+## Architecture decisions
 
-## Decisions
+- **Double booking is prevented by the database.** A partial unique index on `(chargerId, slotStart)` covers only active reservations (`BOOKED`, `CHECKED_IN`). When two requests race for the same slot, one insert fails with a unique violation, which the service maps to `409 SLOT_TAKEN`. A "check, then insert" in application code would let both through.
+- **Refresh tokens rotate, with reuse detection.** Each `/auth/refresh` issues a new token and revokes the old one. If an already-used token is presented again (the signature of a stolen token being replayed), the whole token family is revoked, logging out every session that shared it.
+- **Expiry runs on a schedule, not lazily on read.** A cron job sweeps for no-shows every minute and emits `slot.updated` itself, so slots free up and connected clients see it even if nobody requests that station afterwards.
+- **Timestamps are UTC end to end.** All columns are `timestamptz`, the API sends ISO 8601 with `Z`, and only the UI converts to local time.
+- **Prisma 7 with a partial index in the schema.** The index is declared through Prisma's `partialIndexes` preview feature, so the schema stays the single source of truth instead of an index that lives only in raw SQL and gets dropped by the next migration.
+- **Migrations are a separate step, not part of container start.** The runtime image doesn't need the Prisma CLI, and multiple API instances never race to migrate the same database.
+- **npm workspaces monorepo.** One lockfile, one CI run, one Prettier config. At this size, Nx or Turborepo would add more than they save.
 
-- **npm workspaces monorepo.** The API and web app share one lockfile, one CI run and one
-  Prettier config. At this size a build tool like Nx or Turborepo would add more than it saves.
-- **Double booking is prevented by the database, not by app code.** A partial unique index on
-  `(chargerId, slotStart)` covers only active reservations (`BOOKED`, `CHECKED_IN`). When two
-  requests book the same slot at once, one insert fails with a unique violation and becomes a
-  `409 SLOT_TAKEN`. A "check, then insert" in the service would let both through.
-- **Prisma 7 (`prisma-client` generator, `@prisma/adapter-pg`).** NestJS 12 scaffolds as native
-  ESM and Prisma 7 generates an ESM client, so no module-format workaround is needed. The partial
-  index uses Prisma's `partialIndexes` preview feature, which keeps the schema the single source
-  of truth; an index added only as raw SQL would be dropped by the next `prisma migrate dev`.
-- **Migrations run as their own step, not on container start.** The runtime image stays free of
-  the Prisma CLI, and several API instances never race to migrate the same database.
-- **Timestamps are UTC end to end.** Every timestamp column is `timestamptz`; the API sends
-  ISO 8601 with `Z`, and only the UI converts to local time.
-- **Refresh tokens rotate, with reuse detection via a `familyId`.** Every `/auth/refresh` call
-  issues a new refresh token and revokes the old one. If a revoked (already-used) token is
-  presented again — the signal of a stolen token being replayed — the whole token family is
-  revoked, logging out every session that shared it, not just the one that got caught.
-- **Expiry runs on a cron tick, not lazily on read.** A `@nestjs/schedule` job sweeps for
-  no-shows once a minute and emits `slot.updated` itself, so a slot frees (and every connected
-  client sees it) even if nobody happens to request that station's availability afterward. Lazy
-  expiry-on-read would leave stale `BOOKED` slots visible until the next unrelated read.
-- **Cache invalidation today, socket-patched cache tomorrow.** Booking/cancelling/checking in
-  currently invalidates the `Availability` tag and RTK Query refetches — simple, and enough to
-  see the whole flow work, but it causes a visible flash and doesn't reflect other users'
-  actions live. `useLiveAvailability.ts` is left as a stub (see below) for the user to replace
-  this with `updateQueryData`-based patching driven by the `slot.updated` socket event, the same
-  shape as the stubbed `baseQueryWithReauth.ts` from Milestone 4.
+## Roadmap
 
-## Files worth reading
+- **Live cache patching.** The web client currently invalidates the availability cache after a change and refetches. Next step: subscribe to `slot.updated` and patch the RTK Query cache in place (`updateQueryData`), so updates from other users appear without a refetch flash.
+- **Automatic token refresh in the client.** On a 401, refresh once and retry the original request, with a mutex so concurrent 401s share a single refresh call.
+- Screenshots / demo GIF.
 
-The authorship rule for this project: Claude built everything, but the five files below are
-reserved for the user to rewrite and be able to explain unprompted. The repo link isn't sent to
-anyone until that's true.
+## Where to look
 
-- `api/src/reservations/reservations.service.ts` — the booking path: how a 23505 unique
-  violation from the DB's partial index becomes a `409 SLOT_TAKEN`, with no check-then-insert.
-- `api/src/auth/auth.service.ts` — refresh token rotation and the reuse/theft-detection check
-  via `familyId`.
-- `api/src/reservations/expiry.job.ts` — bonus file: the cron sweep that expires no-shows and
-  emits the socket event, worth reading alongside the cache-patching stub below.
-- `web/src/api/baseQueryWithReauth.ts` — currently a plain base query (attaches the access
-  token only); needs 401 → refresh → retry with a mutex so concurrent 401s share one refresh.
-- `web/src/features/availability/useLiveAvailability.ts` — currently a no-op stub; needs to
-  subscribe to the `slot.updated` socket event and patch the `getAvailability` RTK Query cache
-  entry in place instead of refetching.
-
-_Screenshot/GIF: not added yet — TODO once the live-sync rewrite is done and worth showing off._
+- `api/src/reservations/reservations.service.ts`: the booking path and the unique-violation to `409` mapping
+- `api/src/auth/auth.service.ts`: refresh rotation and family-based reuse detection
+- `api/src/reservations/expiry.job.ts`: the no-show sweep and socket event
+- `web/src/api/baseQueryWithReauth.ts` and `web/src/features/availability/useLiveAvailability.ts`: the two client pieces covered by the roadmap
 
 ## License
 
