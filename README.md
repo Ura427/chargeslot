@@ -13,13 +13,13 @@ ChargeSlot focuses on the parts of a booking system that are easy to get wrong:
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| API | NestJS 12, Prisma 7, PostgreSQL 18 |
-| Web | React 19, Vite 8, Redux Toolkit Query, Tailwind CSS 4 |
-| Realtime | WebSocket gateway (`slot.updated` events) |
-| Tests | Vitest, Supertest, React Testing Library |
-| Tooling | npm workspaces, strict TypeScript, Oxlint, Prettier, Docker Compose, GitHub Actions |
+| Layer    | Technology                                                                          |
+| -------- | ----------------------------------------------------------------------------------- |
+| API      | NestJS 12, Prisma 7, PostgreSQL 18                                                  |
+| Web      | React 19, Vite 8, Redux Toolkit Query, Tailwind CSS 4                               |
+| Realtime | WebSocket gateway (`slot.updated` events)                                           |
+| Tests    | Vitest, Supertest, React Testing Library                                            |
+| Tooling  | npm workspaces, strict TypeScript, Oxlint, Prettier, Docker Compose, GitHub Actions |
 
 ## Run locally
 
@@ -40,14 +40,13 @@ npm run db:setup   # starts Postgres in Docker, applies migrations, seeds 3 stat
 npm run dev        # API on http://localhost:3000, web on http://localhost:5173
 ```
 
-
 ## What works today
 
 - Register / log in, with short-lived access tokens and rotating refresh tokens
 - Station list and a slot grid per charger
 - Book, cancel and check in to a reservation
 - Automatic expiry of no-shows, once a minute
-- A concurrency end-to-end test that fires simultaneous booking requests at a real PostgreSQL instance and asserts that exactly one succeeds
+- One-command backend startup with Docker Compose, safe to restart against existing data
 
 ## Architecture decisions
 
