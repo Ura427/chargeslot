@@ -23,7 +23,15 @@ ChargeSlot focuses on the parts of a booking system that are easy to get wrong:
 
 ## Run locally
 
-Requires Node 24 and Docker.
+**Quickest: Docker only** (no Node needed)
+
+```bash
+docker compose up --build
+```
+
+Postgres starts, migrations and seed data are applied by a one-off `migrate` service, then the API comes up on http://localhost:3000. `curl localhost:3000/health` returns `{"status":"ok"}`.
+
+**Development setup** (Node 24 + Docker, hot reload, web client)
 
 ```bash
 npm install
@@ -32,7 +40,6 @@ npm run db:setup   # starts Postgres in Docker, applies migrations, seeds 3 stat
 npm run dev        # API on http://localhost:3000, web on http://localhost:5173
 ```
 
-`curl localhost:3000/health` returns `{"status":"ok"}`. To try the production API image, stop `npm run dev` and run `docker compose up --build`.
 
 ## What works today
 
