@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const SLOT_MINUTES = 30;
@@ -37,7 +41,10 @@ export class StationsService {
       },
     });
 
-    const byCharger = new Map<string, Map<number, (typeof reservations)[number]>>();
+    const byCharger = new Map<
+      string,
+      Map<number, (typeof reservations)[number]>
+    >();
     for (const reservation of reservations) {
       const minutesFromMidnight = Math.round(
         (reservation.slotStart.getTime() - dayStart.getTime()) / 60000,

@@ -17,7 +17,7 @@ export interface SlotUpdatedPayload {
 @WebSocketGateway({
   cors: {
     origin: process.env.WEB_ORIGIN,
-    credentials: true,  
+    credentials: true,
   },
 })
 export class RealtimeGateway {
