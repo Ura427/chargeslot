@@ -29,6 +29,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      target: build
+    command: sh -c "npm run db:migrate -w api && npm run db:seed -w api"
+    environment:
+      DATABASE_URL: postgresql://chargeslot:chargeslot@db:5432/chargeslot
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   db-data:
