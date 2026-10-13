@@ -1,1 +1,25 @@
 @import 'tailwindcss';
+
+/* Design tokens: one accent (brand), neutral slate surfaces, three speed tiers. */
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-500: #10b981;
+  --color-brand-600: #059669;
+  --color-brand-700: #047857;
+  --color-brand-800: #065f46;
+
+  --color-surface: #ffffff;
+  --color-canvas: #f6f7f9;
+
+  --color-tier-slow: #64748b;
+  --color-tier-fast: #2563eb;
+  --color-tier-ultra: #7c3aed;
+}
+
+body {
+  background: var(--color-canvas);
+  -webkit-font-smoothing: antialiased;
+}

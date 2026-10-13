@@ -9,9 +9,9 @@ import { MyReservationsPage } from './pages/MyReservationsPage';
 
 export function App() {
   return (
-    <div className="min-h-dvh bg-slate-50 text-slate-900">
+    <div className="min-h-dvh bg-canvas text-slate-900">
       <NavBar />
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:py-10">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />

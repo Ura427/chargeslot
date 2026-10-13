@@ -1,9 +1,16 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../app/store';
 import { loggedOut } from '../features/auth/authSlice';
 import { useLogoutMutation } from '../api/auth.api';
 import { Button } from './Button';
+
+const navLink = ({ isActive }: { isActive: boolean }) =>
+  `rounded-lg px-3 py-1.5 transition ${
+    isActive
+      ? 'bg-brand-50 text-brand-800'
+      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+  }`;
 
 export function NavBar() {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
@@ -23,27 +30,30 @@ export function NavBar() {
   }
 
   return (
-    <header role="banner" className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
-        <Link to="/" className="flex items-center gap-2">
-          <img src="/favicon.svg" alt="" className="size-7" />
-          <span className="text-lg font-semibold tracking-tight">
-            ChargeSlot
+    <header
+      role="banner"
+      className="sticky top-0 z-20 border-b border-slate-200/80 bg-surface/90 backdrop-blur"
+    >
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+        <Link to="/" className="flex items-center gap-2.5">
+          <img src="/favicon.svg" alt="" className="size-8" />
+          <span className="text-lg font-bold tracking-tight">
+            Charge<span className="text-brand-700">Slot</span>
           </span>
         </Link>
         {accessToken && (
-          <nav className="flex items-center gap-4 text-sm">
-            <Link to="/" className="text-slate-600 hover:text-slate-900">
+          <nav className="flex items-center gap-1 text-sm font-medium">
+            <NavLink to="/" end className={navLink}>
               Stations
-            </Link>
-            <Link
-              to="/reservations"
-              className="text-slate-600 hover:text-slate-900"
-            >
-              My reservations
-            </Link>
+            </NavLink>
+            <NavLink to="/reservations" className={navLink}>
+              <span className="sm:hidden">Bookings</span>
+              <span className="hidden sm:inline">My reservations</span>
+            </NavLink>
             {user?.email && (
-              <span className="text-slate-500">{user.email}</span>
+              <span className="ml-2 hidden text-slate-500 md:inline">
+                {user.email}
+              </span>
             )}
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               Log out
