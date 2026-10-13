@@ -51,7 +51,7 @@ npm run dev        # API on http://localhost:3000, web on http://localhost:5173
 
 ## Architecture decisions
 
-- **Double booking is prevented by the database.** A partial unique index on `(chargerId, slotStart)` covers only active reservations (`BOOKED`, `CHECKED_IN`). When two requests race for the same slot, one insert fails with a unique violation, which the service maps to `409 SLOT_TAKEN`. A "check, then insert" in application code would let both through.
+- **Double booking is prevented by the database.** A partial unique index on `(chargerId, slotStart)` covers only active reservations (`BOOKED`, `CHECKED_IN`). When two requests race for the same slot, one insert fails with a unique violation, which the service maps to `409 SLOT_TAKEN`. A "check, then insert" in application code would let both through. `api/test/reservations.concurrency.e2e-spec.ts` proves it: 10 users book one slot at once against real PostgreSQL, and exactly one gets `201` while nine get `409`.
 - **Refresh tokens rotate, with reuse detection.** Each `/auth/refresh` issues a new token and revokes the old one. If an already-used token is presented again (the signature of a stolen token being replayed), the whole token family is revoked, logging out every session that shared it.
 - **Expiry runs on a schedule, not lazily on read.** A cron job sweeps for no-shows every minute and emits `slot.updated` itself, so slots free up and connected clients see it even if nobody requests that station afterwards.
 - **Timestamps are UTC end to end.** All columns are `timestamptz`, the API sends ISO 8601 with `Z`, and only the UI converts to local time.
