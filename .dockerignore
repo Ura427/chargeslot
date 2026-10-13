@@ -3,5 +3,4 @@
 **/*.tsbuildinfo
 **/.env
 .git
-web
 api/src/generated

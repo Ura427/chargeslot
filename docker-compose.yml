@@ -1,8 +1,14 @@
+# Local demo stack: `docker compose up --build`, then open http://localhost:8080.
+# Every value here is for local use only; real deployments set secrets in the host's settings.
+
+# Shared by `migrate` and `api`. Inside the compose network the database host is `db`, not localhost.
+x-database-url: &database-url
+  DATABASE_URL: postgresql://chargeslot:chargeslot@db:5432/chargeslot
+
 services:
   db:
     image: postgres:18-alpine
     environment:
-      # Local development only.
       POSTGRES_USER: chargeslot
       POSTGRES_PASSWORD: chargeslot
       POSTGRES_DB: chargeslot
@@ -16,14 +22,34 @@ services:
       timeout: 5s
       retries: 15
 
+  # One-shot job: applies migrations and seeds, then exits. Runs on every `up`;
+  # both steps are no-ops when the database is already current.
+  migrate:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      # The `build` stage still has the Prisma CLI; the runtime image doesn't.
+      target: build
+    command: sh -c "npm run db:migrate -w api && npm run db:seed -w api"
+    environment:
+      <<: *database-url
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
     build:
       context: .
       dockerfile: api/Dockerfile
-    env_file: api/.env
+    # Values are inline (not env_file: api/.env) so a fresh clone starts with no setup:
+    # api/.env is gitignored and doesn't exist until someone creates it.
     environment:
-      # Inside the compose network the database host is `db`, not localhost.
-      DATABASE_URL: postgresql://chargeslot:chargeslot@db:5432/chargeslot
+      <<: *database-url
+      PORT: 3000
+      # The origin the browser loads the web app from; used for CORS and the WebSocket gateway.
+      WEB_ORIGIN: http://localhost:8080
+      JWT_ACCESS_SECRET: local-demo-only-access-secret-change-me-0001
+      JWT_REFRESH_SECRET: local-demo-only-refresh-secret-change-me-0002
     ports:
       - '3000:3000'
     depends_on:
@@ -32,17 +58,18 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  migrate:
+  web:
     build:
       context: .
-      dockerfile: api/Dockerfile
-      target: build
-    command: sh -c "npm run db:migrate -w api && npm run db:seed -w api"
-    environment:
-      DATABASE_URL: postgresql://chargeslot:chargeslot@db:5432/chargeslot
+      dockerfile: web/Dockerfile
+      args:
+        # Baked into the JS at build time. The browser calls the API, so this is the
+        # host port, not the service name `api`.
+        VITE_API_URL: http://localhost:3000
+    ports:
+      - '8080:80'
     depends_on:
-      db:
-        condition: service_healthy
+      - api
 
 volumes:
   db-data:

@@ -23,13 +23,13 @@ ChargeSlot focuses on the parts of a booking system that are easy to get wrong:
 
 ## Run locally
 
-**Quickest: Docker only** (no Node needed)
+**Quickest: Docker only** (no Node, no setup)
 
 ```bash
 docker compose up --build
 ```
 
-Postgres starts, migrations and seed data are applied by a one-off `migrate` service, then the API comes up on http://localhost:3000. `curl localhost:3000/health` returns `{"status":"ok"}`.
+Open http://localhost:8080. Postgres starts, a one-off `migrate` service applies migrations and seeds 3 stations, then the API comes up on http://localhost:3000 and the web app on http://localhost:8080. `bash scripts/docker-smoke.sh` runs the same end-to-end check CI runs against this stack.
 
 **Development setup** (Node 24 + Docker, hot reload, web client)
 
@@ -46,6 +46,7 @@ npm run dev        # API on http://localhost:3000, web on http://localhost:5173
 - Station list and a slot grid per charger
 - Book, cancel and check in to a reservation
 - Automatic expiry of no-shows, once a minute
+- One-command startup of the whole stack with Docker Compose, smoke-tested in CI on every push
 - One-command backend startup with Docker Compose, safe to restart against existing data
 
 ## Architecture decisions
