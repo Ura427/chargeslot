@@ -6,7 +6,7 @@ function makePrismaMock(
   createImpl: () => Promise<unknown>,
   charger: unknown = {
     id: 'charger-1',
-    station: { opensAtMinute: null, closesAtMinute: null },
+    station: { timeZone: 'UTC', opensAtMinute: null, closesAtMinute: null },
   },
 ) {
   return {
@@ -36,7 +36,11 @@ describe('ReservationsService#create', () => {
   it('rejects a slot outside the station opening hours with 409 STATION_CLOSED', async () => {
     const prisma = makePrismaMock(() => Promise.resolve({}), {
       id: 'charger-1',
-      station: { opensAtMinute: 8 * 60, closesAtMinute: 20 * 60 },
+      station: {
+        timeZone: 'UTC',
+        opensAtMinute: 8 * 60,
+        closesAtMinute: 20 * 60,
+      },
     });
     const service = new ReservationsService(
       prisma as never,

@@ -7,8 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { isWithinOpeningHours } from './opening-hours.js';
 import { SLOT_MINUTES } from './slots.js';
 import { summarizeStation } from './station-summary.js';
-
-const SLOTS_PER_DAY = (24 * 60) / SLOT_MINUTES;
+import { localDayStart } from './time-zone.js';
 
 // Statuses that occupy a slot on the availability grid.
 const ACTIVE_STATUSES = ['BOOKED', 'CHECKED_IN'] as const;
@@ -43,7 +42,7 @@ export class StationsService {
   }
 
   async availability(stationId: string, dateStr: string) {
-    const dayStart = this.parseUtcDate(dateStr);
+    const calendarDay = this.parseUtcDate(dateStr);
     const now = Date.now();
 
     const station = await this.prisma.station.findUnique({
@@ -54,7 +53,15 @@ export class StationsService {
       throw new NotFoundException('Station not found');
     }
 
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    // `date` is a calendar day at the station, so it can be 23 or 25 hours long.
+    const nextDay = new Date(calendarDay.getTime() + 24 * 60 * 60 * 1000);
+    const dayStart = localDayStart(dateStr, station.timeZone);
+    const dayEnd = localDayStart(
+      nextDay.toISOString().slice(0, 10),
+      station.timeZone,
+    );
+    const slotCount =
+      (dayEnd.getTime() - dayStart.getTime()) / (SLOT_MINUTES * 60_000);
     const chargerIds = station.chargers.map((c) => c.id);
 
     const reservations = await this.prisma.reservation.findMany({
@@ -83,10 +90,11 @@ export class StationsService {
     return {
       stationId: station.id,
       date: dateStr,
+      timeZone: station.timeZone,
       chargers: station.chargers.map((charger) => {
         const reservedSlots = byCharger.get(charger.id) ?? new Map();
         // Only bookable slots are offered: not started yet, and inside opening hours.
-        const slots = Array.from({ length: SLOTS_PER_DAY }, (_, index) => {
+        const slots = Array.from({ length: slotCount }, (_, index) => {
           const slotStart = new Date(
             dayStart.getTime() + index * SLOT_MINUTES * 60000,
           );

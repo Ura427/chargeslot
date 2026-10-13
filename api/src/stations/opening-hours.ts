@@ -1,7 +1,10 @@
 import { SLOT_MINUTES } from './slots.js';
+import { localMinuteOfDay } from './time-zone.js';
 
 export interface OpeningHours {
-  // Minutes after midnight UTC. Both null means open 24/7.
+  // IANA zone the hours are read in, e.g. Europe/London.
+  timeZone: string;
+  // Local minutes after midnight. Both null means open 24/7.
   opensAtMinute: number | null;
   closesAtMinute: number | null;
 }
@@ -14,7 +17,7 @@ export function isWithinOpeningHours(
   if (hours.opensAtMinute === null || hours.closesAtMinute === null) {
     return true;
   }
-  const minute = slotStart.getUTCHours() * 60 + slotStart.getUTCMinutes();
+  const minute = localMinuteOfDay(slotStart, hours.timeZone);
   return (
     minute >= hours.opensAtMinute &&
     minute + SLOT_MINUTES <= hours.closesAtMinute

@@ -38,6 +38,7 @@ describe('POST /reservations under concurrency', () => {
         name: `e2e-${runId}`,
         address: 'test',
         city: 'test',
+        timeZone: 'UTC',
         chargers: { create: { connectorType: 'CCS2', powerKw: 50 } },
       },
       include: { chargers: true },

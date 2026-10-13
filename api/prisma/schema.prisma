@@ -52,7 +52,9 @@ model Station {
   city           String
   // Path under the web app's public folder, e.g. /stations/airport.jpg.
   imageUrl       String?
-  // Minutes after midnight UTC. Both null means open 24/7.
+  // IANA zone of the station; opening hours and calendar days are read in it.
+  timeZone       String
+  // Local minutes after midnight. Both null means open 24/7.
   opensAtMinute  Int?
   closesAtMinute Int?
   chargers       Charger[]

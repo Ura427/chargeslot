@@ -4,6 +4,7 @@ import { summarizeStation } from './station-summary.js';
 const now = new Date('2026-10-01T14:10:00Z');
 
 const station = {
+  timeZone: 'UTC',
   opensAtMinute: null,
   closesAtMinute: null,
   chargers: [

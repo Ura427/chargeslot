@@ -6,12 +6,14 @@ function makePrismaMock(
     opensAtMinute: null,
     closesAtMinute: null,
   },
+  timeZone = 'UTC',
 ) {
   return {
     station: {
       findUnique: vi.fn(() =>
         Promise.resolve({
           id: 'station-1',
+          timeZone,
           ...hours,
           chargers: [{ id: 'charger-1', connectorType: 'CCS2', powerKw: 50 }],
         }),
@@ -73,5 +75,19 @@ describe('StationsService#availability', () => {
     expect(slots).toHaveLength(24);
     expect(slots[0].slotStart).toBe('2026-10-02T08:00:00.000Z');
     expect(slots.at(-1)!.slotStart).toBe('2026-10-02T19:30:00.000Z');
+  });
+
+  it('builds the day from local midnight at the station', async () => {
+    const service = new StationsService(
+      makePrismaMock(undefined, 'Europe/London') as never,
+    );
+
+    const result = await service.availability('station-1', '2026-10-02');
+    const slots = result.chargers[0].slots;
+
+    // 2 Oct in London (BST) runs 1 Oct 23:00 UTC to 2 Oct 23:00 UTC.
+    expect(slots[0].slotStart).toBe('2026-10-01T23:00:00.000Z');
+    expect(slots.at(-1)!.slotStart).toBe('2026-10-02T22:30:00.000Z');
+    expect(result.timeZone).toBe('Europe/London');
   });
 });

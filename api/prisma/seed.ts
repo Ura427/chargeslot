@@ -11,23 +11,26 @@ const hours = (opens: number, closes: number) => ({
   opensAtMinute: opens * 60,
   closesAtMinute: closes * 60,
 });
+const UK = 'Europe/London';
 const allDay = { opensAtMinute: null, closesAtMinute: null };
 
-// Opening hours are UTC.
+// Opening hours are local wall-clock time in each station's zone.
 const stations = [
   {
     id: seedId(1),
     name: 'City Centre Garage',
     address: '1 Market Square',
-    city: 'Lviv',
+    city: 'Manchester',
+    timeZone: UK,
     imageUrl: '/stations/city-centre.jpg',
-    ...hours(5, 21),
+    ...hours(7, 23),
   },
   {
     id: seedId(2),
     name: 'Riverside Park & Ride',
     address: '48 River Road',
-    city: 'Kyiv',
+    city: 'Nottingham',
+    timeZone: UK,
     imageUrl: '/stations/riverside.jpg',
     ...allDay,
   },
@@ -35,7 +38,8 @@ const stations = [
     id: seedId(3),
     name: 'Airport Long-Stay',
     address: '3 Terminal Drive',
-    city: 'Kyiv',
+    city: 'Birmingham',
+    timeZone: UK,
     imageUrl: '/stations/airport.jpg',
     ...allDay,
   },
@@ -43,15 +47,17 @@ const stations = [
     id: seedId(4),
     name: 'Forum Retail Park',
     address: '12 Shopping Avenue',
-    city: 'Lviv',
+    city: 'Leeds',
+    timeZone: UK,
     imageUrl: '/stations/retail-park.jpg',
-    ...hours(6, 20),
+    ...hours(8, 22),
   },
   {
     id: seedId(5),
-    name: 'M06 Service Area',
-    address: 'Km 42, M06 Highway',
-    city: 'Zhytomyr',
+    name: 'M6 Service Area',
+    address: 'Junction 16, M6',
+    city: 'Stoke-on-Trent',
+    timeZone: UK,
     imageUrl: '/stations/highway.jpg',
     ...allDay,
   },
@@ -59,7 +65,8 @@ const stations = [
     id: seedId(6),
     name: 'Green Street Kerbside',
     address: '27 Green Street',
-    city: 'Lviv',
+    city: 'London',
+    timeZone: UK,
     imageUrl: '/stations/residential.jpg',
     ...allDay,
   },
