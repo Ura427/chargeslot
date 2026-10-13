@@ -2,8 +2,15 @@ import { ConflictException } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReservationsService } from './reservations.service.js';
 
-function makePrismaMock(createImpl: () => Promise<unknown>) {
+function makePrismaMock(
+  createImpl: () => Promise<unknown>,
+  charger: unknown = {
+    id: 'charger-1',
+    station: { opensAtMinute: null, closesAtMinute: null },
+  },
+) {
   return {
+    charger: { findUnique: vi.fn(() => Promise.resolve(charger)) },
     reservation: {
       create: vi.fn(createImpl),
     },
@@ -24,6 +31,43 @@ describe('ReservationsService#create', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('rejects a slot outside the station opening hours with 409 STATION_CLOSED', async () => {
+    const prisma = makePrismaMock(() => Promise.resolve({}), {
+      id: 'charger-1',
+      station: { opensAtMinute: 8 * 60, closesAtMinute: 20 * 60 },
+    });
+    const service = new ReservationsService(
+      prisma as never,
+      makeRealtimeMock() as never,
+    );
+
+    await expect(
+      service.create('user-1', {
+        chargerId: 'charger-1',
+        slotStart: '2026-10-01T21:00:00.000Z',
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: expect.objectContaining({ code: 'STATION_CLOSED' }),
+    });
+    expect(prisma.reservation.create).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for an unknown charger', async () => {
+    const prisma = makePrismaMock(() => Promise.resolve({}), null);
+    const service = new ReservationsService(
+      prisma as never,
+      makeRealtimeMock() as never,
+    );
+
+    await expect(
+      service.create('user-1', {
+        chargerId: 'charger-x',
+        slotStart: '2026-10-01T10:00:00.000Z',
+      }),
+    ).rejects.toMatchObject({ status: 404 });
   });
 
   it.each(['2026-10-01T14:07:00.000Z', '2026-10-01T14:30:15.000Z'])(

@@ -10,7 +10,16 @@ export interface Station {
   id: string;
   name: string;
   address: string;
+  city: string;
+  imageUrl: string | null;
+  // Minutes after midnight UTC; both null means open 24/7.
+  opensAtMinute: number | null;
+  closesAtMinute: number | null;
   chargers: Charger[];
+  maxPowerKw: number;
+  connectorTypes: string[];
+  nextFreeAt: string | null;
+  freeChargersAtNext: number;
 }
 
 export type SlotStatus =

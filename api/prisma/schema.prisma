@@ -1,8 +1,8 @@
 generator client {
-  provider        = "prisma-client"
+  provider            = "prisma-client"
   importFileExtension = "js"
-  output          = "../src/generated/prisma"
-  previewFeatures = ["partialIndexes"]
+  output              = "../src/generated/prisma"
+  previewFeatures     = ["partialIndexes"]
 }
 
 datasource db {
@@ -46,10 +46,16 @@ model RefreshToken {
 }
 
 model Station {
-  id       String    @id @default(uuid()) @db.Uuid
-  name     String
-  address  String
-  chargers Charger[]
+  id             String    @id @default(uuid()) @db.Uuid
+  name           String
+  address        String
+  city           String
+  // Path under the web app's public folder, e.g. /stations/airport.jpg.
+  imageUrl       String?
+  // Minutes after midnight UTC. Both null means open 24/7.
+  opensAtMinute  Int?
+  closesAtMinute Int?
+  chargers       Charger[]
 }
 
 model Charger {

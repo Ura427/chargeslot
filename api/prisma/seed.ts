@@ -3,14 +3,66 @@ import { ConnectorType, PrismaClient } from '../src/generated/prisma/client.js';
 
 const { CCS2, CHADEMO, TYPE2 } = ConnectorType;
 
-// Fixed ids plus `skipDuplicates` (ON CONFLICT DO NOTHING) make re-running the seed a no-op.
+// Fixed ids make re-running the seed safe: stations are upserted, chargers skip duplicates.
 const seedId = (n: number) =>
   `00000000-0000-4000-8000-${n.toString().padStart(12, '0')}`;
 
+const hours = (opens: number, closes: number) => ({
+  opensAtMinute: opens * 60,
+  closesAtMinute: closes * 60,
+});
+const allDay = { opensAtMinute: null, closesAtMinute: null };
+
+// Opening hours are UTC.
 const stations = [
-  { id: seedId(1), name: 'City Centre Garage', address: '1 Market Square' },
-  { id: seedId(2), name: 'Riverside Park & Ride', address: '48 River Road' },
-  { id: seedId(3), name: 'Airport Long-Stay', address: '3 Terminal Drive' },
+  {
+    id: seedId(1),
+    name: 'City Centre Garage',
+    address: '1 Market Square',
+    city: 'Lviv',
+    imageUrl: '/stations/city-centre.jpg',
+    ...hours(5, 21),
+  },
+  {
+    id: seedId(2),
+    name: 'Riverside Park & Ride',
+    address: '48 River Road',
+    city: 'Kyiv',
+    imageUrl: '/stations/riverside.jpg',
+    ...allDay,
+  },
+  {
+    id: seedId(3),
+    name: 'Airport Long-Stay',
+    address: '3 Terminal Drive',
+    city: 'Kyiv',
+    imageUrl: '/stations/airport.jpg',
+    ...allDay,
+  },
+  {
+    id: seedId(4),
+    name: 'Forum Retail Park',
+    address: '12 Shopping Avenue',
+    city: 'Lviv',
+    imageUrl: '/stations/retail-park.jpg',
+    ...hours(6, 20),
+  },
+  {
+    id: seedId(5),
+    name: 'M06 Service Area',
+    address: 'Km 42, M06 Highway',
+    city: 'Zhytomyr',
+    imageUrl: '/stations/highway.jpg',
+    ...allDay,
+  },
+  {
+    id: seedId(6),
+    name: 'Green Street Kerbside',
+    address: '27 Green Street',
+    city: 'Lviv',
+    imageUrl: '/stations/residential.jpg',
+    ...allDay,
+  },
 ];
 
 const charger = (
@@ -29,6 +81,15 @@ const chargers = [
   charger(301, 3, CCS2, 350),
   charger(302, 3, CCS2, 150),
   charger(303, 3, TYPE2, 22),
+  charger(401, 4, TYPE2, 22),
+  charger(402, 4, TYPE2, 22),
+  charger(403, 4, CCS2, 50),
+  charger(501, 5, CCS2, 350),
+  charger(502, 5, CCS2, 150),
+  charger(503, 5, CCS2, 150),
+  charger(504, 5, CHADEMO, 50),
+  charger(601, 6, TYPE2, 7),
+  charger(602, 6, TYPE2, 7),
 ];
 
 const prisma = new PrismaClient({
@@ -36,12 +97,22 @@ const prisma = new PrismaClient({
 });
 
 try {
-  const [stationResult, chargerResult] = await prisma.$transaction([
-    prisma.station.createMany({ data: stations, skipDuplicates: true }),
-    prisma.charger.createMany({ data: chargers, skipDuplicates: true }),
-  ]);
+  // Upsert stations so re-seeding an existing database also fills newly added fields.
+  await prisma.$transaction(
+    stations.map((station) =>
+      prisma.station.upsert({
+        where: { id: station.id },
+        create: station,
+        update: station,
+      }),
+    ),
+  );
+  const chargerResult = await prisma.charger.createMany({
+    data: chargers,
+    skipDuplicates: true,
+  });
   console.log(
-    `Seed: ${stationResult.count} stations and ${chargerResult.count} chargers inserted.`,
+    `Seed: ${stations.length} stations upserted, ${chargerResult.count} chargers inserted.`,
   );
 } finally {
   await prisma.$disconnect();

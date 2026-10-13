@@ -4,8 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { isWithinOpeningHours } from './opening-hours.js';
+import { SLOT_MINUTES } from './slots.js';
+import { summarizeStation } from './station-summary.js';
 
-export const SLOT_MINUTES = 30;
 const SLOTS_PER_DAY = (24 * 60) / SLOT_MINUTES;
 
 // Statuses that occupy a slot on the availability grid.
@@ -15,8 +17,29 @@ const ACTIVE_STATUSES = ['BOOKED', 'CHECKED_IN'] as const;
 export class StationsService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.station.findMany({ include: { chargers: true } });
+  // Two queries total: all stations, then every active reservation in the next 24h.
+  async findAll() {
+    const now = new Date();
+    const stations = await this.prisma.station.findMany({
+      include: { chargers: true },
+      orderBy: { name: 'asc' },
+    });
+    const reservations = await this.prisma.reservation.findMany({
+      where: {
+        slotStart: {
+          gt: now,
+          lt: new Date(now.getTime() + 25 * 60 * 60 * 1000),
+        },
+        status: { in: [...ACTIVE_STATUSES] },
+      },
+      select: { chargerId: true, slotStart: true },
+    });
+
+    return stations.map((station) => {
+      const chargerIds = new Set(station.chargers.map((c) => c.id));
+      const own = reservations.filter((r) => chargerIds.has(r.chargerId));
+      return { ...station, ...summarizeStation(station, own, now) };
+    });
   }
 
   async availability(stationId: string, dateStr: string) {
@@ -62,7 +85,7 @@ export class StationsService {
       date: dateStr,
       chargers: station.chargers.map((charger) => {
         const reservedSlots = byCharger.get(charger.id) ?? new Map();
-        // A slot that has started can no longer be booked, so it isn't offered.
+        // Only bookable slots are offered: not started yet, and inside opening hours.
         const slots = Array.from({ length: SLOTS_PER_DAY }, (_, index) => {
           const slotStart = new Date(
             dayStart.getTime() + index * SLOT_MINUTES * 60000,
@@ -72,7 +95,11 @@ export class StationsService {
             slotStart: slotStart.toISOString(),
             status: reservation ? reservation.status : 'FREE',
           };
-        }).filter((slot) => Date.parse(slot.slotStart) > now);
+        }).filter(
+          (slot) =>
+            Date.parse(slot.slotStart) > now &&
+            isWithinOpeningHours(station, new Date(slot.slotStart)),
+        );
         return {
           chargerId: charger.id,
           connectorType: charger.connectorType,

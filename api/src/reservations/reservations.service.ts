@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
-import { SLOT_MINUTES } from '../stations/stations.service.js';
+import { isWithinOpeningHours } from '../stations/opening-hours.js';
+import { SLOT_MINUTES } from '../stations/slots.js';
 import { CreateReservationDto } from './dto/create-reservation.dto.js';
 
 // Prisma's unique-constraint violation code.
@@ -40,6 +41,19 @@ export class ReservationsService {
       throw new ConflictException({
         code: 'SLOT_IN_PAST',
         message: 'This slot has already started.',
+      });
+    }
+    const charger = await this.prisma.charger.findUnique({
+      where: { id: dto.chargerId },
+      include: { station: true },
+    });
+    if (!charger) {
+      throw new NotFoundException('Charger not found');
+    }
+    if (!isWithinOpeningHours(charger.station, new Date(slotMs))) {
+      throw new ConflictException({
+        code: 'STATION_CLOSED',
+        message: 'The station is closed at this time.',
       });
     }
     try {
