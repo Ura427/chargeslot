@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
-const SLOT_MINUTES = 30;
+export const SLOT_MINUTES = 30;
 const SLOTS_PER_DAY = (24 * 60) / SLOT_MINUTES;
 
 // Statuses that occupy a slot on the availability grid.
@@ -21,6 +21,7 @@ export class StationsService {
 
   async availability(stationId: string, dateStr: string) {
     const dayStart = this.parseUtcDate(dateStr);
+    const now = Date.now();
 
     const station = await this.prisma.station.findUnique({
       where: { id: stationId },
@@ -61,6 +62,7 @@ export class StationsService {
       date: dateStr,
       chargers: station.chargers.map((charger) => {
         const reservedSlots = byCharger.get(charger.id) ?? new Map();
+        // A slot that has started can no longer be booked, so it isn't offered.
         const slots = Array.from({ length: SLOTS_PER_DAY }, (_, index) => {
           const slotStart = new Date(
             dayStart.getTime() + index * SLOT_MINUTES * 60000,
@@ -70,7 +72,7 @@ export class StationsService {
             slotStart: slotStart.toISOString(),
             status: reservation ? reservation.status : 'FREE',
           };
-        });
+        }).filter((slot) => Date.parse(slot.slotStart) > now);
         return {
           chargerId: charger.id,
           connectorType: charger.connectorType,

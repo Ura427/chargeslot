@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -6,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
+import { SLOT_MINUTES } from '../stations/stations.service.js';
 import { CreateReservationDto } from './dto/create-reservation.dto.js';
 
 // Prisma's unique-constraint violation code.
@@ -26,6 +28,20 @@ export class ReservationsService {
   ) {}
 
   async create(userId: string, dto: CreateReservationDto) {
+    const slotMs = new Date(dto.slotStart).getTime();
+    // Off-grid times would never collide with the unique index, so they could double-book.
+    if (slotMs % (SLOT_MINUTES * 60_000) !== 0) {
+      throw new BadRequestException({
+        code: 'INVALID_SLOT',
+        message: `Slots start every ${SLOT_MINUTES} minutes.`,
+      });
+    }
+    if (slotMs <= Date.now()) {
+      throw new ConflictException({
+        code: 'SLOT_IN_PAST',
+        message: 'This slot has already started.',
+      });
+    }
     try {
       const reservation = await this.prisma.reservation.create({
         data: {

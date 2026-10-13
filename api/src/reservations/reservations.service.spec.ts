@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReservationsService } from './reservations.service.js';
 
 function makePrismaMock(createImpl: () => Promise<unknown>) {
@@ -15,6 +15,58 @@ function makeRealtimeMock() {
 }
 
 describe('ReservationsService#create', () => {
+  // Fixtures book 2026-10-01 slots, so pin "now" to before them.
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ['Date'],
+      now: new Date('2026-09-30T12:00:00Z'),
+    });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(['2026-10-01T14:07:00.000Z', '2026-10-01T14:30:15.000Z'])(
+    'rejects %s, which is not on a 30-minute boundary, with 400 INVALID_SLOT',
+    async (slotStart) => {
+      const prisma = makePrismaMock(() => Promise.resolve({}));
+      const service = new ReservationsService(
+        prisma as never,
+        makeRealtimeMock() as never,
+      );
+
+      await expect(
+        service.create('user-1', { chargerId: 'charger-1', slotStart }),
+      ).rejects.toMatchObject({
+        status: 400,
+        response: expect.objectContaining({ code: 'INVALID_SLOT' }),
+      });
+      expect(prisma.reservation.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['in the past', '2026-09-30T11:30:00.000Z'],
+    ['already started', '2026-09-30T12:00:00.000Z'],
+  ])(
+    'rejects a slot that is %s with 409 SLOT_IN_PAST',
+    async (_, slotStart) => {
+      const prisma = makePrismaMock(() => Promise.resolve({}));
+      const service = new ReservationsService(
+        prisma as never,
+        makeRealtimeMock() as never,
+      );
+
+      await expect(
+        service.create('user-1', { chargerId: 'charger-1', slotStart }),
+      ).rejects.toMatchObject({
+        status: 409,
+        response: expect.objectContaining({ code: 'SLOT_IN_PAST' }),
+      });
+      expect(prisma.reservation.create).not.toHaveBeenCalled();
+    },
+  );
+
   it('maps a Prisma P2002 unique violation to a 409 SLOT_TAKEN conflict', async () => {
     const prisma = makePrismaMock(() =>
       Promise.reject(
