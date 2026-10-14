@@ -18,15 +18,10 @@ export class ExpiryJob {
   async expireNoShows() {
     const cutoff = new Date(Date.now() - CHECK_IN_WINDOW_MS);
 
-    const expired = await this.prisma.reservation.findMany({
+    // One UPDATE ... RETURNING: a separate find-then-update could overwrite a check-in
+    // that lands between the two queries.
+    const expired = await this.prisma.reservation.updateManyAndReturn({
       where: { status: 'BOOKED', slotStart: { lt: cutoff } },
-    });
-    if (expired.length === 0) {
-      return;
-    }
-
-    await this.prisma.reservation.updateMany({
-      where: { id: { in: expired.map((reservation) => reservation.id) } },
       data: { status: 'EXPIRED' },
     });
 

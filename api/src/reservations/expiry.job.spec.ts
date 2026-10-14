@@ -2,11 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ExpiryJob } from './expiry.job.js';
 import { CHECK_IN_WINDOW_MS } from './reservations.service.js';
 
-function makePrismaMock(reservations: unknown[]) {
+function makePrismaMock(expired: unknown[]) {
   return {
     reservation: {
-      findMany: vi.fn().mockResolvedValue(reservations),
-      updateMany: vi.fn().mockResolvedValue({ count: reservations.length }),
+      updateManyAndReturn: vi.fn().mockResolvedValue(expired),
     },
   };
 }
@@ -27,39 +26,45 @@ describe('ExpiryJob#expireNoShows', () => {
     vi.useRealTimers();
   });
 
-  it('expires a reservation whose check-in window has passed and notifies the gateway', async () => {
-    const pastSlotStart = new Date(now.getTime() - CHECK_IN_WINDOW_MS - 1000);
-    const reservation = {
-      id: 'res-1',
-      chargerId: 'charger-1',
-      slotStart: pastSlotStart,
-      status: 'BOOKED',
-    };
-    const prisma = makePrismaMock([reservation]);
+  it('expires BOOKED no-shows in one statement, so a concurrent check-in is never overwritten', async () => {
+    const prisma = makePrismaMock([]);
+    const job = new ExpiryJob(prisma as never, makeRealtimeMock() as never);
+
+    await job.expireNoShows();
+
+    expect(prisma.reservation.updateManyAndReturn).toHaveBeenCalledTimes(1);
+    expect(prisma.reservation.updateManyAndReturn).toHaveBeenCalledWith({
+      where: {
+        status: 'BOOKED',
+        slotStart: { lt: new Date(now.getTime() - CHECK_IN_WINDOW_MS) },
+      },
+      data: { status: 'EXPIRED' },
+    });
+  });
+
+  it('notifies the gateway for each expired reservation', async () => {
+    const slotStart = new Date(now.getTime() - CHECK_IN_WINDOW_MS - 1000);
+    const prisma = makePrismaMock([
+      { id: 'res-1', chargerId: 'charger-1', slotStart, status: 'EXPIRED' },
+    ]);
     const realtime = makeRealtimeMock();
     const job = new ExpiryJob(prisma as never, realtime as never);
 
     await job.expireNoShows();
 
-    expect(prisma.reservation.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ['res-1'] } },
-      data: { status: 'EXPIRED' },
-    });
     expect(realtime.emitSlotUpdated).toHaveBeenCalledWith({
       chargerId: 'charger-1',
-      slotStart: pastSlotStart.toISOString(),
+      slotStart: slotStart.toISOString(),
       status: 'EXPIRED',
     });
   });
 
-  it('does not touch a reservation still inside its check-in window', async () => {
-    const prisma = makePrismaMock([]);
+  it('emits nothing when there are no no-shows', async () => {
     const realtime = makeRealtimeMock();
-    const job = new ExpiryJob(prisma as never, realtime as never);
+    const job = new ExpiryJob(makePrismaMock([]) as never, realtime as never);
 
     await job.expireNoShows();
 
-    expect(prisma.reservation.updateMany).not.toHaveBeenCalled();
     expect(realtime.emitSlotUpdated).not.toHaveBeenCalled();
   });
 });
