@@ -41,6 +41,7 @@ export interface ChargerAvailability {
 export interface StationAvailability {
   stationId: string;
   date: string;
+  timeZone: string;
   chargers: ChargerAvailability[];
 }
 

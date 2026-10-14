@@ -1,22 +1,13 @@
-import { fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import {
+  fetchBaseQuery,
+  type BaseQueryFn,
+  type FetchArgs,
+  type FetchBaseQueryError,
+} from '@reduxjs/toolkit/query/react';
 import type { RootState } from '../app/store';
+import { loggedOut, setCredentials } from '../features/auth/authSlice';
 
-// ---------------------------------------------------------------------------
-// USER-REWRITE FILE (see .claude/plans/chargeslot-showcase.md, "The 4 files").
-//
-// This is a plain base query that attaches the access token and nothing else.
-// It does NOT implement 401 -> refresh -> retry. Every 401 from the API is
-// currently surfaced to the caller as-is; nothing here logs the user out or
-// refreshes automatically on token expiry.
-//
-// TODO(user): rewrite this to wrap the query below with reauth logic:
-//   - on a 401 response, call POST /auth/refresh once
-//   - use a mutex so concurrent 401s share a single in-flight refresh
-//   - retry the original request with the new access token
-//   - if the refresh itself fails, dispatch `loggedOut()` and let the app
-//     redirect to /login
-// ---------------------------------------------------------------------------
-export const baseQueryWithReauth = fetchBaseQuery({
+const rawBaseQuery = fetchBaseQuery({
   baseUrl: import.meta.env.VITE_API_URL,
   // Sends the httpOnly refresh-token cookie to the API on another origin.
   credentials: 'include',
@@ -28,3 +19,53 @@ export const baseQueryWithReauth = fetchBaseQuery({
     return headers;
   },
 });
+
+// A 401 from these means bad credentials or a dead session, not an expired access token.
+const NO_REFRESH = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/logout',
+];
+
+// The refresh in flight, shared by every request that gets a 401 meanwhile.
+// Refresh tokens rotate, so two parallel refreshes would make the second one look
+// like a replayed token and revoke the whole session.
+let refreshing: Promise<boolean> | null = null;
+
+export const baseQueryWithReauth: BaseQueryFn<
+  string | FetchArgs,
+  unknown,
+  FetchBaseQueryError
+> = async (args, api, extraOptions) => {
+  let result = await rawBaseQuery(args, api, extraOptions);
+
+  const url = typeof args === 'string' ? args : args.url;
+  if (result.error?.status !== 401 || NO_REFRESH.includes(url)) {
+    return result;
+  }
+
+  refreshing ??= (async () => {
+    const refresh = await rawBaseQuery(
+      { url: '/auth/refresh', method: 'POST' },
+      api,
+      extraOptions,
+    );
+    const accessToken = (refresh.data as { accessToken?: string } | undefined)
+      ?.accessToken;
+    if (accessToken) {
+      api.dispatch(setCredentials({ accessToken }));
+      return true;
+    }
+    // ProtectedRoute sends the user to /login once the token is gone.
+    api.dispatch(loggedOut());
+    return false;
+  })().finally(() => {
+    refreshing = null;
+  });
+
+  if (await refreshing) {
+    result = await rawBaseQuery(args, api, extraOptions);
+  }
+  return result;
+};

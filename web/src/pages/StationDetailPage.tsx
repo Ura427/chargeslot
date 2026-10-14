@@ -6,6 +6,7 @@ import {
   type ChargerAvailability,
 } from '../api/stations.api';
 import { useCreateReservationMutation } from '../api/reservations.api';
+import { useLiveAvailability } from '../features/availability/useLiveAvailability';
 import {
   dayPart,
   formatOpeningHours,
@@ -76,9 +77,8 @@ export function StationDetailPage() {
   const [createReservation, { isLoading: isBooking }] =
     useCreateReservationMutation();
 
-  // TODO(user): once useLiveAvailability is implemented, call it here
-  // (e.g. `useLiveAvailability(stationId)`) to patch the cache live;
-  // the refetch() call in handleConfirmBook below stays as the working fallback.
+  // Other drivers' bookings appear without a refetch.
+  useLiveAvailability(stationId, date);
 
   async function handleConfirmBook() {
     if (!pending) return;
