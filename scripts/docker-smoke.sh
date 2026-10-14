@@ -40,7 +40,7 @@ migrate_status=$(docker compose ps -a migrate --format '{{.State}} {{.ExitCode}}
 
 step 'Seed data is served by the API'
 stations=$(curl -sf "$API/stations" | jq length)
-[ "$stations" = 3 ] || fail "expected 3 stations, got $stations"
+[ "$stations" = 6 ] || fail "expected 6 stations, got $stations"
 
 step 'Web app is served, including deep routes (SPA fallback)'
 curl -sf "$WEB/" | grep -q '<div id="root">' || fail 'index.html not served at /'
@@ -61,9 +61,9 @@ post "$API/auth/login" "$credentials"
 [ "$STATUS" = 201 ] || fail "login returned $STATUS: $BODY"
 token=$(jq -r .accessToken <<<"$BODY")
 
-# Tomorrow at the top of the hour, UTC. The database starts empty, so this slot is free.
+# Tomorrow at the top of the hour, UTC, on a 24/7 station (Airport). The database starts empty, so this slot is free.
 slot=$(date -u -d 'tomorrow' +%Y-%m-%dT%H:00:00.000Z)
-booking="{\"chargerId\":\"00000000-0000-4000-8000-000000000101\",\"slotStart\":\"$slot\"}"
+booking="{\"chargerId\":\"00000000-0000-4000-8000-000000000301\",\"slotStart\":\"$slot\"}"
 post "$API/reservations" "$booking" "$token"
 [ "$STATUS" = 201 ] || fail "first booking returned $STATUS: $BODY"
 
@@ -77,6 +77,6 @@ docker compose down
 docker compose up -d
 wait_for "$API/health"
 stations=$(curl -sf "$API/stations" | jq length)
-[ "$stations" = 3 ] || fail "after restart: expected 3 stations, got $stations"
+[ "$stations" = 6 ] || fail "after restart: expected 6 stations, got $stations"
 
 printf '\nAll smoke checks passed.\n'
