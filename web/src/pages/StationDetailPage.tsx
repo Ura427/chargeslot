@@ -14,6 +14,7 @@ import {
   isBrowserTimeZone,
   stationDateString,
   type DayPart,
+  zoneAbbreviation,
 } from '../lib/date';
 import { getErrorCode, getErrorMessage } from '../lib/errors';
 import { SlotButton } from '../components/SlotButton';
@@ -199,8 +200,8 @@ export function StationDetailPage() {
         </div>
         {!isBrowserTimeZone(station.timeZone) && (
           <p className="text-xs text-slate-500">
-            Times are local to the station ({station.timeZone.replace('_', ' ')}
-            )
+            Times shown in station time,{' '}
+            {zoneAbbreviation(new Date().toISOString(), station.timeZone)}
           </p>
         )}
       </div>

@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Station } from '../api/stations.api';
-import { formatOpeningHours, formatStationTime } from '../lib/date';
+import {
+  formatOpeningHours,
+  formatStationTime,
+  isBrowserTimeZone,
+  zoneAbbreviation,
+} from '../lib/date';
 import { connectorLabel } from '../lib/connectors';
 import { SpeedBadge } from './SpeedBadge';
 
@@ -43,6 +48,8 @@ function Availability({ station }: { station: Station }) {
           {station.freeChargersAtNext} of {station.chargers.length}
         </strong>{' '}
         free at {formatStationTime(station.nextFreeAt, station.timeZone)}
+        {!isBrowserTimeZone(station.timeZone) &&
+          ` ${zoneAbbreviation(station.nextFreeAt, station.timeZone)}`}
       </span>
     </span>
   );

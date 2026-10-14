@@ -3,6 +3,7 @@ import {
   formatOpeningHours,
   formatStationTime,
   stationDateString,
+  zoneAbbreviation,
 } from './date';
 
 const LONDON = 'Europe/London';
@@ -40,5 +41,12 @@ describe('formatOpeningHours', () => {
 
   it('formats local minutes as HH:MM', () => {
     expect(formatOpeningHours(8 * 60, 22 * 60)).toBe('08:00–22:00');
+  });
+});
+
+describe('zoneAbbreviation', () => {
+  it('names the zone for that date', () => {
+    expect(zoneAbbreviation('2026-07-01T12:00:00Z', LONDON)).toBe('BST');
+    expect(zoneAbbreviation('2026-01-15T12:00:00Z', LONDON)).toBe('GMT');
   });
 });

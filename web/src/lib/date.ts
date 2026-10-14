@@ -47,13 +47,26 @@ export function formatOpeningHours(
   return `${hhmm(opensAtMinute)}–${hhmm(closesAtMinute)}`;
 }
 
-export function isBrowserTimeZone(timeZone: string): boolean {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone === timeZone;
+// Short zone name at that instant, e.g. "BST" or "GMT" for Europe/London.
+export function zoneAbbreviation(iso: string, timeZone: string): string {
+  return (
+    new Intl.DateTimeFormat('en-GB', { timeZone, timeZoneName: 'short' })
+      .formatToParts(new Date(iso))
+      .find((part) => part.type === 'timeZoneName')?.value ?? timeZone
+  );
 }
 
-export function formatLocalDateTime(iso: string): string {
-  return new Date(iso).toLocaleString([], {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+export function formatStationDateTime(iso: string, timeZone: string): string {
+  return new Date(iso).toLocaleString('en-GB', {
+    timeZone,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
   });
+}
+
+export function isBrowserTimeZone(timeZone: string): boolean {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone === timeZone;
 }

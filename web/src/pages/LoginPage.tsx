@@ -5,6 +5,7 @@ import { useLoginMutation } from '../api/auth.api';
 import { setCredentials } from '../features/auth/authSlice';
 import { getErrorMessage } from '../lib/errors';
 import { Button } from '../components/Button';
+import { AuthLayout, FormError, TextField } from '../components/AuthLayout';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -27,48 +28,45 @@ export function LoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="text-2xl font-semibold">Log in</h1>
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <Button type="submit" disabled={isLoading} className="w-full">
+    <AuthLayout
+      title="Log in"
+      subtitle="Welcome back. Pick up where you left off."
+      footer={
+        <>
+          No account?{' '}
+          <Link
+            to="/register"
+            className="font-semibold text-brand-700 hover:underline"
+          >
+            Create one
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <TextField
+          id="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+        <TextField
+          id="password"
+          label="Password"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+        {error && <FormError>{error}</FormError>}
+        <Button type="submit" size="lg" disabled={isLoading} className="w-full">
           {isLoading ? 'Logging in…' : 'Log in'}
         </Button>
       </form>
-      <p className="mt-4 text-sm text-slate-600">
-        No account?{' '}
-        <Link to="/register" className="font-medium text-slate-900 underline">
-          Register
-        </Link>
-      </p>
-    </div>
+    </AuthLayout>
   );
 }

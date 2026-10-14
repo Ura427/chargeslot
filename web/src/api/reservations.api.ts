@@ -14,6 +14,20 @@ export interface Reservation {
   updatedAt: string;
 }
 
+export interface ReservationWithStation extends Reservation {
+  charger: {
+    connectorType: string;
+    powerKw: number;
+    station: {
+      id: string;
+      name: string;
+      city: string;
+      imageUrl: string | null;
+      timeZone: string;
+    };
+  };
+}
+
 export const reservationsApi = api.injectEndpoints({
   endpoints: (builder) => ({
     createReservation: builder.mutation<
@@ -31,7 +45,7 @@ export const reservationsApi = api.injectEndpoints({
       query: (id) => ({ url: `/reservations/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Availability', 'Reservations'],
     }),
-    getMyReservations: builder.query<Reservation[], void>({
+    getMyReservations: builder.query<ReservationWithStation[], void>({
       query: () => '/reservations/me',
       providesTags: ['Reservations'],
     }),

@@ -125,6 +125,23 @@ export class ReservationsService {
     return this.prisma.reservation.findMany({
       where: { userId },
       orderBy: { slotStart: 'desc' },
+      include: {
+        charger: {
+          select: {
+            connectorType: true,
+            powerKw: true,
+            station: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                imageUrl: true,
+                timeZone: true,
+              },
+            },
+          },
+        },
+      },
     });
   }
 
